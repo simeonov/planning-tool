@@ -48,13 +48,13 @@ export default function Room() {
 
   useEffect(() => {
     const roomId = params.id as string;
-    const storedData = localStorage.getItem(`pokerPlanning_${roomId}`);
-    let storedName = '';
+    let storedName = localStorage.getItem('userName') || '';
+    let storedData = localStorage.getItem(`pokerPlanning_${roomId}`);
     let storedRole = '';
 
     if (storedData) {
       const parsedData = JSON.parse(storedData);
-      storedName = parsedData.name;
+      storedName = parsedData.name || storedName;
       storedRole = parsedData.role;
     }
 
@@ -65,7 +65,7 @@ export default function Room() {
 
     setUserName(storedName);
     setUserRole(storedRole);
-    setNewName(storedName); // Initialize newName with the current name
+    setNewName(storedName);
 
     const newSocket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000');
     setSocket(newSocket);
@@ -145,9 +145,11 @@ export default function Room() {
       const roomId = params.id as string;
       const dataToStore = { name: newName.trim(), role: userRole };
       localStorage.setItem(`pokerPlanning_${roomId}`, JSON.stringify(dataToStore));
+      localStorage.setItem('userName', newName.trim());
       setUserName(newName.trim());
       socket?.emit('changeName', { roomId: roomId, oldName: userName, newName: newName.trim() });
       setIsChangingName(false);
+      setNewName('');
     }
   };
 

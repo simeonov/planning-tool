@@ -22,8 +22,9 @@ export default function Home() {
   const createRoom = () => {
     if (userName.trim()) {
       setIsLoading(true);
-      localStorage.setItem('userName', userName.trim());
       const roomId = Math.random().toString(36).substring(7);
+      localStorage.setItem('userName', userName.trim());
+      localStorage.setItem(`pokerPlanning_${roomId}`, JSON.stringify({ name: userName.trim(), role: '' }));
       router.push(`/room/${roomId}`);
     }
   };
