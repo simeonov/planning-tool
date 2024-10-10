@@ -55,6 +55,18 @@ app.prepare().then(() => {
       }
     });
 
+    socket.on('changeName', ({ roomId, oldName, newName }) => {
+      if (rooms.has(roomId)) {
+        const userEntry = Array.from(rooms.get(roomId).entries()).find(([_, user]) => user.name === oldName);
+        if (userEntry) {
+          const [userId, userData] = userEntry;
+          userData.name = newName;
+          rooms.get(roomId).set(userId, userData);
+          io.to(roomId).emit('updateUsers', Array.from(rooms.get(roomId).values()));
+        }
+      }
+    });
+
     socket.on('disconnecting', () => {
       for (const roomId of socket.rooms) {
         if (rooms.has(roomId)) {

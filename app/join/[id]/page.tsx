@@ -1,30 +1,30 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 
-export default function Home() {
+export default function JoinRoom() {
   const [userName, setUserName] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const params = useParams();
   const router = useRouter();
 
   useEffect(() => {
     const storedName = localStorage.getItem('userName');
     if (storedName) {
-      setUserName(storedName);
+      router.push(`/room/${params.id}`);
     }
-  }, []);
+  }, [params.id, router]);
 
-  const createRoom = () => {
+  const joinRoom = () => {
     if (userName.trim()) {
       setIsLoading(true);
       localStorage.setItem('userName', userName.trim());
-      const roomId = Math.random().toString(36).substring(7);
-      router.push(`/room/${roomId}`);
+      router.push(`/room/${params.id}`);
     }
   };
 
@@ -32,8 +32,8 @@ export default function Home() {
     <div className="container mx-auto flex items-center justify-center min-h-screen">
       <Card className="w-[350px]">
         <CardHeader>
-          <CardTitle>Poker Planning</CardTitle>
-          <CardDescription>Create a new planning session</CardDescription>
+          <CardTitle>Join Planning Session</CardTitle>
+          <CardDescription>Enter your name to join the room</CardDescription>
         </CardHeader>
         <CardContent>
           <Input
@@ -43,11 +43,11 @@ export default function Home() {
           />
         </CardContent>
         <CardFooter>
-          <Button onClick={createRoom} className="w-full" disabled={isLoading || !userName.trim()}>
+          <Button onClick={joinRoom} className="w-full" disabled={isLoading || !userName.trim()}>
             {isLoading ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : null}
-            Create Room
+            Join Session
           </Button>
         </CardFooter>
       </Card>

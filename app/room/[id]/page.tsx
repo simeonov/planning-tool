@@ -1,14 +1,24 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import io, { Socket } from 'socket.io-client';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { Users, Eye, Loader2 } from 'lucide-react';
+import { Users, Eye, Loader2, Edit2 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 interface User {
   name: string;
@@ -20,22 +30,30 @@ const estimationValues = ['2', '3', '5', '8', '13'];
 
 export default function Room() {
   const params = useParams();
-  const searchParams = useSearchParams();
+  const router = useRouter();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [users, setUsers] = useState<User[]>([]);
+  const [userName, setUserName] = useState<string>('');
   const [userRole, setUserRole] = useState<string>('');
   const [selectedCard, setSelectedCard] = useState<string>('');
   const [revealVotes, setRevealVotes] = useState<boolean>(false);
   const [roomLink, setRoomLink] = useState<string>('');
   const [isLoading, setIsLoading] = useState({
-    estimator: false,
-    observer: false,
     reveal: false,
     reset: false,
     copyLink: false,
   });
+  const [isChangingName, setIsChangingName] = useState(false);
+  const [newName, setNewName] = useState('');
 
   useEffect(() => {
+    const storedName = localStorage.getItem('userName');
+    if (!storedName) {
+      router.push(`/join/${params.id}`);
+      return;
+    }
+
+    setUserName(storedName);
     const newSocket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000');
     setSocket(newSocket);
 
@@ -44,12 +62,15 @@ export default function Room() {
 
     newSocket.emit('joinRoom', {
       roomId: params.id,
-      userName: searchParams.get('name'),
+      userName: storedName,
     });
 
     newSocket.on('updateUsers', (updatedUsers: User[]) => {
       setUsers(updatedUsers);
-      setIsLoading((prev) => ({ ...prev, estimator: false, observer: false }));
+      const currentUser = updatedUsers.find(user => user.name === storedName);
+      if (currentUser) {
+        setUserRole(currentUser.role);
+      }
     });
 
     newSocket.on('revealVotes', () => {
@@ -66,10 +87,9 @@ export default function Room() {
     return () => {
       newSocket.disconnect();
     };
-  }, [params.id, searchParams]);
+  }, [params.id, router]);
 
   const selectRole = (role: string) => {
-    setIsLoading((prev) => ({ ...prev, [role.toLowerCase()]: true }));
     setUserRole(role);
     socket?.emit('selectRole', { roomId: params.id, role });
   };
@@ -95,6 +115,16 @@ export default function Room() {
       toast.success('Room link copied to clipboard!');
       setIsLoading((prev) => ({ ...prev, copyLink: false }));
     });
+  };
+
+  const changeName = () => {
+    if (newName.trim() && newName !== userName) {
+      localStorage.setItem('userName', newName.trim());
+      setUserName(newName.trim());
+      socket?.emit('changeName', { roomId: params.id, oldName: userName, newName: newName.trim() });
+      setIsChangingName(false);
+      setNewName('');
+    }
   };
 
   const estimators = users.filter(user => user.role === 'Estimator');
@@ -133,6 +163,30 @@ export default function Room() {
     );
   };
 
+  if (!userRole) {
+    return (
+      <div className="container mx-auto flex items-center justify-center min-h-screen">
+        <Card className="w-[350px]">
+          <CardHeader>
+            <CardTitle>Select Your Role</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex space-x-4">
+              <Button onClick={() => selectRole('Estimator')} className="flex-1">
+                <Users className="mr-2 h-4 w-4" />
+                Estimator
+              </Button>
+              <Button onClick={() => selectRole('Observer')} className="flex-1">
+                <Eye className="mr-2 h-4 w-4" />
+                Observer
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-4">
@@ -145,105 +199,103 @@ export default function Room() {
             ) : null}
             Copy Link
           </Button>
+          <Dialog open={isChangingName} onOpenChange={setIsChangingName}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Edit2 className="mr-2 h-4 w-4" />
+                Change Name
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Change Your Name</DialogTitle>
+                <DialogDescription>
+                  Enter your new name below. This will update your name for all participants.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="name" className="text-right">
+                    Name
+                  </Label>
+                  <Input
+                    id="name"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    className="col-span-3"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button onClick={changeName} disabled={!newName.trim() || newName === userName}>
+                  Save Changes
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
-      {!userRole ? (
-        <Card className="max-w-md mx-auto">
-          <CardHeader>
-            <CardTitle>Select Your Role</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex space-x-4">
-              <Button 
-                onClick={() => selectRole('Estimator')} 
-                className="flex-1"
-                disabled={isLoading.estimator}
-              >
-                {isLoading.estimator ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Users className="mr-2 h-4 w-4" />
-                )}
-                Estimator
-              </Button>
-              <Button 
-                onClick={() => selectRole('Observer')} 
-                className="flex-1"
-                disabled={isLoading.observer}
-              >
-                {isLoading.observer ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Eye className="mr-2 h-4 w-4" />
-                )}
-                Observer
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="relative h-[700px]">
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-96 h-64 bg-secondary rounded-lg flex items-center justify-center border-4 border-primary">
-              {userRole === 'Estimator' && !revealVotes && (
-                <div className="grid grid-cols-3 gap-2">
-                  {estimationValues.map((value) => (
-                    <Button
-                      key={value}
-                      variant={selectedCard === value ? "default" : "outline"}
-                      className="w-16 h-24 rounded-lg flex items-center justify-center text-lg font-bold"
-                      onClick={() => selectCard(value)}
-                    >
-                      {value}
-                    </Button>
-                  ))}
-                </div>
-              )}
-              {userRole === 'Observer' && (
-                <div className="flex flex-col space-y-2">
+      <div className="relative h-[700px]">
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-96 h-64 bg-secondary rounded-lg flex items-center justify-center border-4 border-primary">
+            {userRole === 'Estimator' && !revealVotes && (
+              <div className="grid grid-cols-3 gap-2">
+                {estimationValues.map((value) => (
                   <Button
-                    onClick={handleRevealVotes}
-                    disabled={!users.every(user => user.role === 'Observer' || user.vote) || isLoading.reveal}
-                    className="w-32"
+                    key={value}
+                    variant={selectedCard === value ? "default" : "outline"}
+                    className="w-16 h-24 rounded-lg flex items-center justify-center text-lg font-bold"
+                    onClick={() => selectCard(value)}
                   >
-                    {isLoading.reveal ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : null}
-                    Reveal Votes
+                    {value}
                   </Button>
-                  <Button 
-                    onClick={handleResetVotes} 
-                    className="w-32"
-                    disabled={isLoading.reset}
-                  >
-                    {isLoading.reset ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : null}
-                    New Vote
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {estimators.map((user, index) => renderEstimator(user, index, estimators.length))}
-
-          <div className="absolute top-0 right-0 bg-secondary p-4 rounded-lg border border-primary">
-            <h2 className="font-bold mb-2">Observers</h2>
-            <div className="flex flex-col space-y-2">
-              {observers.map((user, index) => (
-                <div key={index} className="flex items-center space-x-2">
-                  <Avatar className="w-8 h-8">
-                    <AvatarFallback>{user.name[0]}</AvatarFallback>
-                  </Avatar>
-                  <span className="text-sm">{user.name}</span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
+            {userRole === 'Observer' && (
+              <div className="flex flex-col space-y-2">
+                <Button
+                  onClick={handleRevealVotes}
+                  disabled={!users.every(user => user.role === 'Observer' || user.vote) || isLoading.reveal}
+                  className="w-32"
+                >
+                  {isLoading.reveal ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : null}
+                  Reveal Votes
+                </Button>
+                <Button 
+                  onClick={handleResetVotes} 
+                  className="w-32"
+                  disabled={isLoading.reset}
+                >
+                  {isLoading.reset ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : null}
+                  New Vote
+                </Button>
+              </div>
+            )}
           </div>
         </div>
-      )}
+
+        {estimators.map((user, index) => renderEstimator(user, index, estimators.length))}
+
+        <div className="absolute top-0 right-0 bg-secondary p-4 rounded-lg border border-primary">
+          <h2 className="font-bold mb-2">Observers</h2>
+          <div className="flex flex-col space-y-2">
+            {observers.map((user, index) => (
+              <div key={index} className="flex items-center space-x-2">
+                <Avatar className="w-8 h-8">
+                  <AvatarFallback>{user.name[0]}</AvatarFallback>
+                </Avatar>
+                <span className="text-sm">{user.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
