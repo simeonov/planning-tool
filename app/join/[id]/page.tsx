@@ -14,17 +14,23 @@ export default function JoinRoom() {
   const router = useRouter();
 
   useEffect(() => {
-    const storedName = localStorage.getItem('userName');
-    if (storedName) {
-      router.push(`/room/${params.id}`);
+    const roomId = params.id as string;
+    const storedData = localStorage.getItem(`pokerPlanning_${roomId}`);
+    if (storedData) {
+      const { name } = JSON.parse(storedData);
+      if (name) {
+        router.push(`/room/${roomId}`);
+      }
     }
   }, [params.id, router]);
 
   const joinRoom = () => {
     if (userName.trim()) {
       setIsLoading(true);
-      localStorage.setItem('userName', userName.trim());
-      router.push(`/room/${params.id}`);
+      const roomId = params.id as string;
+      const dataToStore = { name: userName.trim(), role: '' };
+      localStorage.setItem(`pokerPlanning_${roomId}`, JSON.stringify(dataToStore));
+      router.push(`/room/${roomId}`);
     }
   };
 

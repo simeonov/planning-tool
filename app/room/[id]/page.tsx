@@ -47,13 +47,26 @@ export default function Room() {
   const [newName, setNewName] = useState('');
 
   useEffect(() => {
-    const storedName = localStorage.getItem('userName');
+    const roomId = params.id as string;
+    const storedData = localStorage.getItem(`pokerPlanning_${roomId}`);
+    let storedName = '';
+    let storedRole = '';
+
+    if (storedData) {
+      const parsedData = JSON.parse(storedData);
+      storedName = parsedData.name;
+      storedRole = parsedData.role;
+    }
+
     if (!storedName) {
-      router.push(`/join/${params.id}`);
+      router.push(`/join/${roomId}`);
       return;
     }
 
     setUserName(storedName);
+    setUserRole(storedRole);
+    setNewName(storedName); // Initialize newName with the current name
+
     const newSocket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000');
     setSocket(newSocket);
 
@@ -61,15 +74,22 @@ export default function Room() {
     setRoomLink(currentUrl);
 
     newSocket.emit('joinRoom', {
-      roomId: params.id,
+      roomId: roomId,
       userName: storedName,
     });
+
+    if (storedRole) {
+      newSocket.emit('selectRole', { roomId: roomId, role: storedRole });
+    }
 
     newSocket.on('updateUsers', (updatedUsers: User[]) => {
       setUsers(updatedUsers);
       const currentUser = updatedUsers.find(user => user.name === storedName);
       if (currentUser) {
         setUserRole(currentUser.role);
+        // Update localStorage with the latest role
+        const dataToStore = { name: storedName, role: currentUser.role };
+        localStorage.setItem(`pokerPlanning_${roomId}`, JSON.stringify(dataToStore));
       }
     });
 
@@ -91,7 +111,10 @@ export default function Room() {
 
   const selectRole = (role: string) => {
     setUserRole(role);
-    socket?.emit('selectRole', { roomId: params.id, role });
+    const roomId = params.id as string;
+    socket?.emit('selectRole', { roomId: roomId, role });
+    const dataToStore = { name: userName, role: role };
+    localStorage.setItem(`pokerPlanning_${roomId}`, JSON.stringify(dataToStore));
   };
 
   const selectCard = (value: string) => {
@@ -119,11 +142,12 @@ export default function Room() {
 
   const changeName = () => {
     if (newName.trim() && newName !== userName) {
-      localStorage.setItem('userName', newName.trim());
+      const roomId = params.id as string;
+      const dataToStore = { name: newName.trim(), role: userRole };
+      localStorage.setItem(`pokerPlanning_${roomId}`, JSON.stringify(dataToStore));
       setUserName(newName.trim());
-      socket?.emit('changeName', { roomId: params.id, oldName: userName, newName: newName.trim() });
+      socket?.emit('changeName', { roomId: roomId, oldName: userName, newName: newName.trim() });
       setIsChangingName(false);
-      setNewName('');
     }
   };
 
